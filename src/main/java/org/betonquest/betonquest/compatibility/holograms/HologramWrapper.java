@@ -3,11 +3,14 @@ package org.betonquest.betonquest.compatibility.holograms;
 import org.betonquest.betonquest.BetonQuest;
 import org.betonquest.betonquest.api.config.quest.QuestPackage;
 import org.betonquest.betonquest.api.profile.OnlineProfile;
+import org.betonquest.betonquest.api.profile.Profile;
+import org.betonquest.betonquest.api.quest.QuestException;
 import org.betonquest.betonquest.compatibility.holograms.lines.AbstractLine;
 import org.betonquest.betonquest.id.ConditionID;
 import org.betonquest.betonquest.instruction.variable.VariableNumber;
 import org.betonquest.betonquest.util.PlayerConverter;
 import org.bukkit.Location;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -21,12 +24,12 @@ import java.util.List;
  *                      However, content updates such as refreshing the top list do.
  *                      <p>
  *                      If <code>true</code>, {@link HologramWrapper#updateContent()} will end instantly to not cause
- *                      unneeded load.
+ *                      an unneeded load.
  * @param conditionList List of all specified conditions. Hologram will only be visible if all conditions are met. If
  *                      none are specified, the hologram will be visible at all times.
  *                      <p>
  *                      If empty, {@link HologramWrapper#updateVisibility()} will end instantly to not cause
- *                      unneeded load.
+ *                      an unneeded load.
  * @param cleanedLines  List of validated lines. Used by {@link #updateContent()} to update content without
  *                      revalidating content and dealing with potential errors.
  * @param questPackage  {@link QuestPackage} in which the hologram is specified in.
@@ -41,7 +44,7 @@ public record HologramWrapper(int interval, List<BetonHologram> holograms, boole
      * Checks whether all conditions are met by a players and displays or hides the hologram.
      */
     public void updateVisibility() {
-        final int maxRange = varMaxRange.getInt(null);
+        final int maxRange = getMaxRangeFromVariable(null);
         if (conditionList.length == 0 && maxRange <= 0) {
             for (final BetonHologram hologram : holograms) {
                 hologram.showAll();
@@ -57,7 +60,7 @@ public record HologramWrapper(int interval, List<BetonHologram> holograms, boole
     /**
      * Update the visibility for a particular player.
      *
-     * @param profile The online player's profile
+     * @param profile The online player's profile.
      */
     public void updateVisibilityForPlayer(final OnlineProfile profile) {
         final boolean conditionsMet = BetonQuest.getInstance().getQuestTypeAPI().conditions(profile, conditionList);
@@ -76,12 +79,12 @@ public record HologramWrapper(int interval, List<BetonHologram> holograms, boole
     /**
      * Checks if the player is out of range from the specified hologram.
      *
-     * @param profile  The online profile of the player
-     * @param hologram The hologram to check the distance from
-     * @return {@code true} if the player is out of range, {@code false} otherwise
+     * @param profile  The online profile of the player.
+     * @param hologram The hologram to check the distance from.
+     * @return {@code true} if the player is out of range, {@code false} otherwise.
      */
     public boolean isPlayerOutOfRange(final OnlineProfile profile, final BetonHologram hologram) {
-        final int maxRange = varMaxRange.getInt(profile);
+        final int maxRange = getMaxRangeFromVariable(profile);
         if (maxRange > 0) {
             final Location playerLocation = profile.getPlayer().getLocation();
             final Location hologramLocation = hologram.getLocation();
@@ -129,12 +132,21 @@ public record HologramWrapper(int interval, List<BetonHologram> holograms, boole
         int index = 0;
         for (final AbstractLine line : cleanedLines) {
             if (line.isNotStaticText()) {
-                final int finalIndex = index;
                 for (final BetonHologram hologram : holograms) {
-                    line.setLine(hologram, finalIndex);
+                    line.setLine(hologram, index);
                 }
             }
             index += line.getLinesAdded();
         }
+    }
+
+    private int getMaxRangeFromVariable(@Nullable final Profile profile) {
+        int maxRange;
+        try {
+            maxRange = varMaxRange.getValue(profile).intValue();
+        } catch (final QuestException e) {
+            maxRange = 0;
+        }
+        return maxRange;
     }
 }
